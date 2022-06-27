@@ -204,7 +204,7 @@ class GaussianProcessOptimization(object):
         x2[:, x.shape[1]:] = context
         return x2
 
-    def _add_data_point(self, gp, x, y, context=None):
+    def _add_data_point(self, gp, x, y, context=None, shared_data=False):
         """Add a data point to a particular GP.
 
         This should only be called on its own if you know what you're doing.
@@ -227,7 +227,13 @@ class GaussianProcessOptimization(object):
         gp.set_XY(np.vstack([gp.X, x]),
                   np.vstack([gp.Y, y]))
 
-    def add_new_data_point(self, x, y, context=None):
+        if shared_data:
+            gp.data_sources.append(True)
+        else:
+            gp.data_sources.append(False)
+
+
+    def add_new_data_point(self, x, y, context=None, shared_data=False):
         """
         Add a new function observation to the GPs.
 
@@ -248,7 +254,7 @@ class GaussianProcessOptimization(object):
             not_nan = ~np.isnan(y[:, i])
             if np.any(not_nan):
                 # Add data to GP (context already included in x)
-                self._add_data_point(gp, x[not_nan, :], y[not_nan, [i]])
+                self._add_data_point(gp, x[not_nan, :], y[not_nan, [i]], context=None, shared_data=shared_data)
 
         # Update global data stores
         self._x = np.concatenate((self._x, x), axis=0)
