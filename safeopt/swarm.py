@@ -41,7 +41,7 @@ class SwarmOptimization(object):
         self.fitness = fitness
 
         self.bounds = bounds
-        if self.bounds is not None:
+        if self.bounds is not None and self.bounds is not np.ndarray:
             self.bounds = np.asarray(self.bounds)
 
         self.initial_inertia = 1.0

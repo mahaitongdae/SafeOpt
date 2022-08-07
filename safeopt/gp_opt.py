@@ -799,7 +799,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         self.swarm_size = swarm_size
         self.max_iters = 100  # number of swarm iterations
 
-        if not isinstance(bounds, list):
+        if isinstance(bounds, tuple):
             self.bounds = [bounds] * self.S.shape[1]
         else:
             self.bounds = bounds
