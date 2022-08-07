@@ -214,15 +214,15 @@ def plot_2d_gp(gp, inputs, predictions=None, figure=None, axis=None,
                           alpha=0.3)
 
         axis.plot(inputs[:, unfixed[0]], output, **kwargs)
-        for id in range(len(gp.X)-1):
+        for id in range(len(gp.X)):
             if gp.data_sources[id]:
                 axis.scatter(gp.X[id, unfixed[0]], gp.Y[id, 0], s=20 * ms,
                              marker='x', linewidths=mew, color='green')
             else:
                 axis.scatter(gp.X[id, unfixed[0]], gp.Y[id, 0], s=20 * ms,
                              marker='x', linewidths=mew, color=point_color)
-        axis.scatter(gp.X[-1, unfixed[0]], gp.Y[-1, 0], s=20 * ms,
-                     marker='x', linewidths=mew, color='r')
+        # axis.scatter(gp.X[-1, unfixed[0]], gp.Y[-1, 0], s=20 * ms,
+        #              marker='x', linewidths=mew, color='r')
         axis.set_xlim([np.min(inputs[:, unfixed[0]]),
                        np.max(inputs[:, unfixed[0]])])
 

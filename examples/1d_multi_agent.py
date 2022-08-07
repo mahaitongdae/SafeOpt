@@ -56,21 +56,18 @@ x0 = np.zeros((1, len(bounds)))
 
 # Generate function with safe initial point at x=0
 def sample_safe_fun():
-    fun = safeopt.sample_gp_function(kernel, bounds, noise_var, 100)
-    while True:
-        fun2 = safeopt.sample_gp_function(kernel2, bounds, noise_var2, 100)
-        if fun2(0, noise=False) > 1:
-            break
+    fun = lambda x: (x - 1.)*np.sin(x - 0.5)
+    fun2 = lambda x: (x - 1.)*np.sin(x - 0.5)
 
     def combined_fun(x, noise=True):
-        return np.hstack([fun(x, noise), fun2(x, noise)])
-
+        return np.hstack([fun(x), fun2(x)])
     return combined_fun
 
 
 # Communication network
-N = np.eye(3)
-N[0, 1] = N[1, 0] = N[1, 2] = N[2, 1] = 1
+# N = np.eye(3)
+# N[0, 1] = N[1, 0] = N[1, 2] = N[2, 1] = 1
+N = np.ones([2,2])
 
 # %% md
 
@@ -120,7 +117,7 @@ plot()
 # %%
 
 # Obtain next query point
-x_next = maopt.optimize()
+maopt.optimize_with_different_tasks()
 # Get a measurement from the real system
 # y_meas = fun(x_next)
 # # Add this to the GP model

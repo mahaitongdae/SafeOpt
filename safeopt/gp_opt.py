@@ -534,7 +534,7 @@ class SafeOpt(GaussianProcessOptimization):
             s = self.S
         else:
             # skip points in M, they will already be evaluated
-            s = np.logical_and(self.S, ~self.M)
+            s = np.logical_and(self.S, ~self.M) # ~ for computing the opposite number
 
             # Remove points with a variance that is too small
             s[s] = (np.max((u[s, :] - l[s, :]) / self.scaling, axis=1) >
@@ -1177,7 +1177,7 @@ class SafeOptSwarm(GaussianProcessOptimization):
         logging.info("The greedy estimate of lower bound has value %f" %
                      self.best_lower_bound)
 
-        if std_maxi > std_exp:
+        if std_maxi > std_exp: # they just compare the amount of std.
             return x_maxi
         else:
             return x_exp
