@@ -38,4 +38,4 @@ from __future__ import absolute_import
 from .utilities import *
 from .gp_opt import *
 from .multi_agent import *
-import safeopt.benchmark_functions_2D
+from .benchmark_functions_2D import *
