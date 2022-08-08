@@ -9,7 +9,6 @@ class MultiAgentSafeOptSwarm(object):
         self.agents = []
         self.fun = fun
         self.ma_tasks = ['maximizers','expanders']
-        assert len(self.ma_tasks) == self.n_workers
         for i in range(self.n_workers):
             self.agents.append(SafeOptSwarm(gp[i], fmin, bounds=bounds, threshold=threshold))
 
@@ -21,13 +20,17 @@ class MultiAgentSafeOptSwarm(object):
 
 
     def optimize(self):
+        y_meass = []
         for agent_id, agent in enumerate(self.agents):
             x_next = agent.optimize()
             y_meas = self.fun(x_next)
             agent.add_new_data_point(x_next, y_meas)
             self._broadcast(agent_id, x_next, y_meas)
+            y_meass.append(y_meas[0])
+        return max(y_meass)
 
     def optimize_with_different_tasks(self):
+        assert len(self.ma_tasks) == self.n_workers
         for agent_id, agent in enumerate(self.agents):
             x_next, _ = agent.get_new_query_point(self.ma_tasks[agent_id])
             y_meas = self.fun(x_next)

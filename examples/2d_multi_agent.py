@@ -44,9 +44,9 @@ parameter_set = safeopt.linearly_spaced_combinations(bounds, 1000)
 x0 = np.array([0., 0.])
 
 # Communication network
-# N = np.eye(3)
-# N[0, 1] = N[1, 0] = N[1, 2] = N[2, 1] = 1
-N = np.ones([2,2])
+N = np.eye(3)
+N[0, 1] = N[1, 0] = N[1, 2] = N[2, 1] = 1
+# N = np.ones([2,2])
 n_workers = N.shape[0]
 
 # The statistical model of our objective function and safety constraint
@@ -59,7 +59,11 @@ maopt = safeopt.MultiAgentSafeOptSwarm(N, fun, models, [-np.inf, 0.], bounds=bou
                                        threshold=0.2)
 
 # maopt.optimize_with_different_tasks()
-maopt.optimize()
+max_ys = []
+for i in range(50):
+    max_y = maopt.optimize()
+    max_ys.append(max_y)
+    print('iteration: {}, regret: {:.3e}'.format(i, maopt.fun(arg_max[0])[0] - max(max_ys)))
 maopt.agents[0].plot(100, plot_3d=False)
 plt.show()
 

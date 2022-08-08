@@ -1196,3 +1196,4 @@ class SafeOptSwarm(GaussianProcessOptimization):
         """
         maxi = np.argmax(self.gp.Y)
         return self.gp.X[maxi, :], self.gp.Y[maxi]
+
