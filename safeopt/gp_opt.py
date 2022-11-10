@@ -677,7 +677,7 @@ class SafeOpt(GaussianProcessOptimization):
             self.compute_safe_set()
         else:
             self.compute_sets()
-
+        print(max(self.S))
         return self.get_new_query_point(ucb=ucb)
 
     def get_maximum(self, context=None):

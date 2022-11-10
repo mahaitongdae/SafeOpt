@@ -19,10 +19,10 @@ noise_var2 = 1e-5
 # Bounds on the inputs variable
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--objective', type=str, default='ackley')
+parser.add_argument('--objective', type=str, default='bird')
 parser.add_argument('--constraint', type=str, default='disk')
 # parser.add_argument('--arg_max', type=np.ndarray, default=None)
-parser.add_argument('--n_workers', type=int, default=3)
+parser.add_argument('--n_workers', type=int, default=1)
 parser.add_argument('--kernel', type=str, default='RBF')
 parser.add_argument('--acquisition_function', type=str, default='safeopt')
 parser.add_argument('--policy', type=str, default='greedy')
@@ -32,8 +32,10 @@ parser.add_argument('--regularization_strength', type=float, default=0.01)
 parser.add_argument('--pending_regularization', type=str, default=None)
 parser.add_argument('--pending_regularization_strength', type=float, default=0.01)
 parser.add_argument('--grid_density', type=int, default=30)
-parser.add_argument('--n_iters', type=int, default=50)
-parser.add_argument('--n_runs', type=int, default=1)
+parser.add_argument('--n_iters', type=int, default=150)
+parser.add_argument('--n_runs', type=int, default=5)
+parser.add_argument('--swarm_opt', type=bool, default=True)
+parser.add_argument('--ucb', type=bool, default=True)
 args = parser.parse_args()
 
 def given_safe_fun(objective):
@@ -81,24 +83,34 @@ kernel2 = GPy.kern.RBF(input_dim=len(bounds), variance=2., lengthscale=1.0, ARD=
 
 # Initial safe point
 x0 = np.array([0., 0.])
+#
+x_init = np.random.uniform(0.2 * bounds[:, 0], 0.2 * bounds[:, 1], (15, bounds.shape[0]))
 
 # Communication network
-N = np.eye(3)
-N[0, 1] = N[1, 0] = N[1, 2] = N[2, 1] = 1
-# N = np.ones([2,2])
+if args.n_workers > 1:
+    N = np.eye(3)
+    N[0, 1] = N[1, 0] = N[1, 2] = N[2, 1] = 1
+    args.n_iters = 50
+else:
+    N = np.ones([1,1])
+    args.n_iters = 150
 n_workers = N.shape[0]
 
 # The statistical model of our objective function and safety constraint
 y0 = fun(x0)
-models = [[safeopt.MAGPRegression(x0[np.newaxis, :], y0[0, np.newaxis, np.newaxis], kernel, noise_var=noise_var),
-           safeopt.MAGPRegression(x0[np.newaxis, :], y0[1, np.newaxis, np.newaxis], kernel2, noise_var=noise_var2)] for i in range(n_workers)]
+for x in x_init:
+    y0 = np.vstack((y0, fun(x)))
+models = [[safeopt.MAGPRegression(np.vstack((x0, x_init)), y0[:,0,np.newaxis], kernel, noise_var=noise_var),
+           safeopt.MAGPRegression(np.vstack((x0, x_init)), y0[:,1,np.newaxis], kernel2, noise_var=noise_var2)] for i in range(n_workers)]
 
 # The optimization routine
 maopt = safeopt.MultiAgentSafeOptSwarm(N, fun, models, [-np.inf, 0.], arg_max, bounds=bounds,
-                                       threshold=0.2,args=args)
+                                       threshold=0.2,args=args, use_swarm=args.swarm_opt)
 
 # maopt.optimize_with_different_tasks()
 maopt.optimize()
+fig, ax = plt.subplots(1, 2, figsize=(10,10), sharex=True, sharey=True)
+# ax1, ax2, ax2b, ax3 = ax[0, 0], ax[0, 1], ax[1, 0], ax[1, 1]
 maopt.agents[0].plot(100, plot_3d=False)
 plt.show()
 

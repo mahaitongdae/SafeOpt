@@ -1,4 +1,4 @@
-from safeopt.gp_opt import SafeOptSwarm, SafeOpt
+from safeopt.gp_opt import SafeOptSwarm, SafeOpt, linearly_spaced_combinations
 import GPy
 import os
 import datetime
@@ -11,7 +11,7 @@ import json
 
 class MultiAgentSafeOptSwarm(object):
 
-    def __init__(self, network, fun, gp, fmin, arg_max, bounds, threshold, args):
+    def __init__(self, network, fun, gp, fmin, arg_max, bounds, threshold, args, use_swarm=False):
         self.network = network
         self.n_workers = network.shape[0]
         self.agents = []
@@ -20,11 +20,15 @@ class MultiAgentSafeOptSwarm(object):
         self.arg_max = arg_max
         self.ma_tasks = ['maximizers','expanders']
         for i in range(self.n_workers):
-            self.agents.append(SafeOptSwarm(gp[i], fmin, bounds=bounds, threshold=threshold))
+            if use_swarm:
+                self.agents.append(SafeOptSwarm(gp[i], fmin, bounds=bounds, threshold=threshold))
+            else:
+                parameter_set = linearly_spaced_combinations(bounds, 100)
+                self.agents.append(SafeOpt(gp[i], parameter_set, 0., lipschitz=None, threshold=threshold))
         self._DT_ = datetime.datetime.now().strftime("%Y-%m-%d_%H%M%S")
         self._ROOT_DIR_ = os.path.dirname(os.path.dirname(__main__.__file__))
         self._TEMP_DIR_ = os.path.join(os.path.join(self._ROOT_DIR_, "temp"), self.args.objective)
-        self._ID_DIR_ = os.path.join(self._TEMP_DIR_, self._DT_+'safeopt')
+        self._ID_DIR_ = os.path.join(self._TEMP_DIR_, self._DT_+'MA-safeopt') if args.n_workers > 1 else os.path.join(self._TEMP_DIR_, self._DT_+'SA-safeopt')
         self._DATA_DIR_ = os.path.join(self._ID_DIR_, "data")
         self._FIG_DIR_ = os.path.join(self._ID_DIR_, "fig")
         self._PNG_DIR_ = os.path.join(self._FIG_DIR_, "png")
@@ -54,22 +58,35 @@ class MultiAgentSafeOptSwarm(object):
 
     def optimize(self):
         for run in range(self.args.n_runs):
+            self.old_x = [None for i in range(len(self.agents))]
             for i in range(self.args.n_iters + 1):
                 y_meass = []
+                dist_traveled = 0.
                 for agent_id, agent in enumerate(self.agents):
-                    x_next = agent.optimize()
+                    x_next = agent.optimize(ucb=self.args.ucb)
                     y_meas = self.fun(x_next)
                     agent.add_new_data_point(x_next, y_meas)
                     self._broadcast(agent_id, x_next, y_meas)
                     y_meass.append(y_meas[0])
+                    if not i:
+                        self._distance_traveled[run, i] = 0
+                        self.old_x[agent_id] = x_next
+                    else:
+                        # print(self.old_x)
+                        self._distance_traveled[run, i] = self._distance_traveled[run, i - 1] + sum(
+                            [np.linalg.norm(x_next - self.old_x[agent_id]) for a in range(self.n_workers)])
+
                 self.max_ys.append(max(y_meass)) # max y from each agent
                 self._simple_regret[run, i] = self.fun(self.arg_max[0])[0] - max(self.max_ys)
+
                 print('step: {}, current_max: {:.3f}, arg max: {:.3f}, regret: {:.3e}'.format(i, max(self.max_ys), self.fun(self.arg_max[0])[0], self._simple_regret[run, i]))
 
         iter, r_mean, r_conf95 = self._mean_regret()
         self._plot_regret(iter, r_mean, r_conf95)
 
-        self._save_data(data=[iter, r_mean, r_conf95], name='data')
+        iter, d_mean, d_conf95 = self._mean_distance_traveled()
+
+        self._save_data(data=[iter, r_mean, r_conf95, d_mean, d_conf95], name='data')
 
     def optimize_with_different_tasks(self):
         assert len(self.ma_tasks) == self.n_workers
@@ -85,6 +102,13 @@ class MultiAgentSafeOptSwarm(object):
         # 95% confidence interval
         conf95 = [1.96*rst/self._simple_regret.shape[0] for rst in r_std]
         return range(self._simple_regret.shape[1]), r_mean, conf95
+
+    def _mean_distance_traveled(self):
+        d_mean = [np.mean(self._distance_traveled[:,iter]) for iter in range(self._distance_traveled.shape[1])]
+        d_std = [np.std(self._distance_traveled[:,iter]) for iter in range(self._distance_traveled.shape[1])]
+        # 95% confidence interval
+        conf95 = [1.96*dst/self._distance_traveled.shape[0] for dst in d_std]
+        return range(self._distance_traveled.shape[1]), d_mean, conf95
 
     def _plot_regret(self, iter, r_mean, conf95, log = False):
 
