@@ -57,7 +57,7 @@ def plot_gp():
 # plt.show()
 # Obtain next query point
 for i in range(10):
-    x_next = 6 * np.random.random() - 3
+    x_next = opt.optimize(np.linspace(-3,3,100))
     # opt.verify_ymax_estimate()
     # Get a measurement from the real system
     y_meas = fun(x_next)
@@ -66,13 +66,13 @@ for i in range(10):
 
 
 
-opt.verify_ymax_estimate(add_ucb=False)
-print(opt.y_max_mean, opt.y_max_var)
+# opt.verify_ymax_estimate(add_ucb=False)
+# print(opt.y_max_mean, opt.y_max_var)
 plot_gp()
-opt.verify_ymax_estimate(add_ucb=True)
-print(opt.y_max_mean, opt.y_max_var)
-y = np.linspace(-4,4,100)
-y_in_std_norm = (y - opt.y_max_mean)/np.sqrt(opt.y_max_var)
-plt.plot(norm.pdf(y_in_std_norm), y, c='grey')
-plt.plot([-3, 3], [opt.y_max_mean,opt.y_max_mean], linestyle='--', c='blue')
+# opt.verify_ymax_estimate(add_ucb=True)
+# print(opt.y_max_mean, opt.y_max_var)
+# y = np.linspace(-4,4,100)
+# y_in_std_norm = (y - opt.y_max_mean)/np.sqrt(opt.y_max_var)
+# plt.plot(norm.pdf(y_in_std_norm), y, c='grey')
+# plt.plot([-3, 3], [opt.y_max_mean,opt.y_max_mean], linestyle='--', c='blue')
 plt.show()

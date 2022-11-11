@@ -1231,6 +1231,7 @@ class LinearEntropySearch(GaussianProcessOptimization):
         else:
             selected_grid = np.asarray(selected_grid)
 
+        self.grid = selected_grid
         return selected_grid
 
 
@@ -1250,8 +1251,24 @@ class LinearEntropySearch(GaussianProcessOptimization):
         y_max_var = np.matmul(np.matmul(weights.T, cov), weights)
         return y_max_mean.squeeze(), y_max_var.squeeze()
 
-    def optimize(self):
-        pass
+    def optimize(self, inputs):
+        acqs = []
+        self.compute_ymax()
+        for x in inputs:
+            sigmadx = self.gp.posterior_covariance_between_points(np.asarray([[x]]), self.grid.reshape([-1,1]))
+            meanx, covx = self.gp.predict_noiseless(np.asarray([[x]])) # only one-d x
+            meant, covt = self.gp.predict_noiseless(self.grid.reshape([-1,1]), full_cov=True)
+            Omega = 1 / covx * np.matmul(sigmadx.T, sigmadx)
+            quad = np.matmul(covt + Omega, Omega)
+            exp_s = np.trace(quad) + np.matmul(np.matmul(meant.T, Omega), meant)
+            var_s = 2 * np.trace(np.matmul(quad,quad)) \
+                    + 4 * np.matmul(np.matmul(meant.T, np.matmul(quad, covt + Omega, Omega)), meant)
+            acq = np.log(exp_s) + var_s/exp_s
+            acqs.append(acq)
+
+        maximum = np.argmax(np.asarray(acqs))
+        return inputs[maximum]
+
 
     def verify_ymax_estimate(self, add_ucb=False):
         self.y_max_mean, self.y_max_var = self.compute_ymax(add_ucb)
