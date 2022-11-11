@@ -24,7 +24,7 @@ from .swarm import SwarmOptimization
 import logging
 
 
-__all__ = ['SafeOpt', 'SafeOptSwarm']
+__all__ = ['SafeOpt', 'SafeOptSwarm', 'LinearEntropySearch']
 
 
 class GaussianProcessOptimization(object):
@@ -1190,3 +1190,130 @@ class SafeOptSwarm(GaussianProcessOptimization):
         """
         maxi = np.argmax(self.gp.Y)
         return self.gp.X[maxi, :], self.gp.Y[maxi]
+
+class LinearEntropySearch(GaussianProcessOptimization):
+
+    def __init__(self,gp, fmin, bounds, beta=2, num_contexts=0, threshold=0,
+                 scaling='auto'):
+        super(LinearEntropySearch, self).__init__(gp, fmin, beta, num_contexts, threshold,
+                 scaling)
+        self.bounds = bounds
+        # self.weight_type = weight_type
+        self.y_max_mean = 0.
+        self.y_max_var = 1.
+
+    def get_grid(self, bounds, nums, add_ucb=False):
+        """
+
+        Args:
+            bounds:
+            nums:
+            new_obs:
+        """
+        grid = np.linspace(bounds[0], bounds[1], nums)
+        beta = 2.
+        mean, var = self.gp.predict_noiseless(grid[:, np.newaxis])
+
+        mean = mean.squeeze()
+        std_dev = np.sqrt(var.squeeze())
+        obs_y_max = max(self.gp.Y)
+
+        # Update confidence intervals
+        ucb = mean + beta * std_dev
+        selected_grid = []
+        for i, g in enumerate(grid):
+            if ucb[i] > obs_y_max:
+                selected_grid.append(g)
+            else:
+                pass
+        if add_ucb:
+            selected_grid = np.hstack((np.asarray(selected_grid),grid[np.argmax(ucb)]))
+        else:
+            selected_grid = np.asarray(selected_grid)
+
+        return selected_grid
+
+
+    def compute_ymax(self, add_ucb=False, weight_type='expo'):
+        test_bounds = [-3., 3.]
+        grid = self.get_grid(test_bounds, 100, add_ucb=add_ucb)
+        print(grid.shape)
+        mean, cov = self.gps[0].predict_noiseless(grid[:, np.newaxis], full_cov=True)
+        if weight_type == 'linear':
+            weights = (mean - min(mean))/(mean - min(mean)).sum()
+        elif weight_type == 'expo':
+            weights = np.exp(mean-min(mean)) / np.exp(mean - min(mean)).sum()
+        elif weight_type == 'expo2':
+            obs_y_max = max(self.gp.Y)
+            weights = np.exp(mean-obs_y_max) / np.exp(mean - obs_y_max).sum()
+        y_max_mean = np.matmul(weights.T, mean)
+        y_max_var = np.matmul(np.matmul(weights.T, cov), weights)
+        return y_max_mean.squeeze(), y_max_var.squeeze()
+
+    def optimize(self):
+        pass
+
+    def verify_ymax_estimate(self, add_ucb=False):
+        self.y_max_mean, self.y_max_var = self.compute_ymax(add_ucb)
+
+
+    def plot(self, n_samples, axis=None, figure=None, plot_3d=False,
+             **kwargs):
+        """
+                Plot the current state of the optimization.
+
+                Parameters
+                ----------
+                n_samples: int
+                    How many samples to use for plotting
+                axis: matplotlib axis
+                    The axis on which to draw (does not get cleared first)
+                figure: matplotlib figure
+                    Ignored if axis is already defined
+                plot_3d: boolean
+                    If set to true shows a 3D plot for 2 dimensional data
+                """
+        # Fix contexts to their current values
+        if self.num_contexts > 0 and 'fixed_inputs' not in kwargs:
+            kwargs.update(fixed_inputs=self.context_fixed_inputs)
+
+        true_input_dim = self.gp.kern.input_dim - self.num_contexts
+        if true_input_dim == 1 or plot_3d:
+            inputs = np.zeros((n_samples ** true_input_dim, self.gp.input_dim))
+            inputs[:, :true_input_dim] = linearly_spaced_combinations(
+                self.bounds[:true_input_dim],
+                n_samples)
+
+        if not isinstance(n_samples, Sequence):
+            n_samples = [n_samples] * len(self.bounds)
+
+        axes = []
+        if self.gp.input_dim - self.num_contexts == 1:
+            # 2D plots with uncertainty
+            for gp, fmin in zip(self.gps, self.fmin):
+                if fmin == -np.inf:
+                    fmin = None
+                ax = plot_2d_gp(gp, inputs, figure=figure, axis=axis,
+                                fmin=fmin, **kwargs)
+                y = np.linspace(-4,4,100)
+                y_in_std_norm = (y - self.y_max_mean)/np.sqrt(self.y_max_var)
+                ax.plot(norm.pdf(y_in_std_norm), y, c='grey')
+                ax.plot([-3, 3], [self.y_max_mean,self.y_max_mean], linestyle='--', c='red')
+                axes.append(ax)
+        else:
+            if plot_3d:
+                for gp in self.gps:
+                    plot_3d_gp(gp, inputs, figure=figure, axis=axis, **kwargs)
+            else:
+                for gp in self.gps:
+                    plot_contour_gp(gp,
+                                    [np.linspace(self.bounds[0][0],
+                                                 self.bounds[0][1],
+                                                 n_samples[0]),
+                                     np.linspace(self.bounds[1][0],
+                                                 self.bounds[1][1],
+                                                 n_samples[1])],
+                                    figure=figure,
+                                    axis=axis)
+
+
