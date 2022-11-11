@@ -56,8 +56,8 @@ def plot_gp():
 # plot_gp()
 # plt.show()
 # Obtain next query point
-for i in range(10):
-    x_next = 6 * np.random.random() - 3
+for i in range(5):
+    x_next = 10 * np.random.random() - 5
     # opt.verify_ymax_estimate()
     # Get a measurement from the real system
     y_meas = fun(x_next)

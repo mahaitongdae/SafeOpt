@@ -1211,7 +1211,7 @@ class LinearEntropySearch(GaussianProcessOptimization):
             new_obs:
         """
         grid = np.linspace(bounds[0], bounds[1], nums)
-        beta = 2.
+        beta = 1.
         mean, var = self.gp.predict_noiseless(grid[:, np.newaxis])
 
         mean = mean.squeeze()
@@ -1234,13 +1234,15 @@ class LinearEntropySearch(GaussianProcessOptimization):
         return selected_grid
 
 
-    def compute_ymax(self, add_ucb=False, weight_type='expo'):
+    def compute_ymax(self, add_ucb=False, weight_type='linear2'):
         test_bounds = [-3., 3.]
         grid = self.get_grid(test_bounds, 100, add_ucb=add_ucb)
         print(grid.shape)
         mean, cov = self.gps[0].predict_noiseless(grid[:, np.newaxis], full_cov=True)
         if weight_type == 'linear':
             weights = (mean - min(mean))/(mean - min(mean)).sum()
+        if weight_type == 'linear2':
+            weights = mean/mean.sum()
         elif weight_type == 'expo':
             weights = np.exp(mean-min(mean)) / np.exp(mean - min(mean)).sum()
         elif weight_type == 'expo2':
