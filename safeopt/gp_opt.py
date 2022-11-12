@@ -1202,7 +1202,7 @@ class LinearEntropySearch(GaussianProcessOptimization):
         self.y_max_mean = 0.
         self.y_max_var = 1.
 
-    def get_grid(self, bounds, nums, add_ucb=False):
+    def get_grid(self, bounds, nums, add_ucb=False, ucb_only=True):
         """
 
         Args:
@@ -1230,7 +1230,9 @@ class LinearEntropySearch(GaussianProcessOptimization):
             selected_grid = np.hstack((np.asarray(selected_grid),grid[np.argmax(ucb)]))
         else:
             selected_grid = np.asarray(selected_grid)
-
+        if ucb_only:
+            selected_grid = grid[np.argmax(ucb)]
+        self.grid = selected_grid
         return selected_grid
 
 
@@ -1238,7 +1240,8 @@ class LinearEntropySearch(GaussianProcessOptimization):
         test_bounds = [-3., 3.]
         grid = self.get_grid(test_bounds, 100, add_ucb=add_ucb)
         print(grid.shape)
-        mean, cov = self.gps[0].predict_noiseless(grid[:, np.newaxis], full_cov=True)
+        # mean, cov = self.gps[0].predict_noiseless(grid[:, np.newaxis], full_cov=True)
+        mean, cov = self.gps[0].predict_noiseless(np.asarray([[grid]]), full_cov=True)
         if weight_type == 'linear':
             weights = (mean - min(mean))/(mean - min(mean)).sum()
         if weight_type == 'linear2':
@@ -1248,12 +1251,42 @@ class LinearEntropySearch(GaussianProcessOptimization):
         elif weight_type == 'expo2':
             obs_y_max = max(self.gp.Y)
             weights = np.exp(mean-obs_y_max) / np.exp(mean - obs_y_max).sum()
+        elif weight_type == 'ones':
+            weights = np.ones_like(mean)
         y_max_mean = np.matmul(weights.T, mean)
         y_max_var = np.matmul(np.matmul(weights.T, cov), weights)
         return y_max_mean.squeeze(), y_max_var.squeeze()
 
-    def optimize(self):
-        pass
+    def optimize(self, inputs):
+        acqs = []
+        deltamus = []
+        deltasigs = []
+        self.compute_ymax()
+        for x in inputs:
+            self.add_new_data_point(np.asarray([[x]]), sum(self.gp.predict_noiseless(np.asarray([[x]]))))
+            sigmadx = self.gp.posterior_covariance_between_points(np.asarray([[x]]), self.grid.reshape([-1,1]))
+            meanx, covx = self.gp.predict_noiseless(np.asarray([[x]])) # only one-d x
+            meant, covt = self.gp.predict_noiseless(self.grid.reshape([-1,1]), full_cov=True)
+            covmut = 1 / (covx.squeeze()+1e-8) * np.matmul(sigmadx.T, sigmadx)
+            quad = covt + covmut
+            trace_mat = np.matmul(quad, covmut)
+            exp_s = np.trace(trace_mat) + np.matmul(np.matmul(meant.T, quad), meant)
+            var_s = 2 * np.trace(np.matmul(trace_mat,trace_mat)) \
+                    + 4 * np.matmul(np.matmul(np.matmul(meant.T, trace_mat), quad), meant)
+            deltasig = sigmadx * 1 / (covx.squeeze()+1e-8) * sigmadx
+            acq = np.log(exp_s) - var_s/(2 * exp_s**2)
+            acqs.append(acq)
+            deltasigs.append(deltasig)
+            self.remove_last_data_point()
+            if exp_s < 0:
+                print(np.trace(trace_mat), np.linalg.matrix_rank(quad))
+                a = 0
+        self.acqs = acqs
+        self.deltasigs = deltasigs
+        minimum = np.argmin(-np.asarray(deltasigs))
+        print(minimum)
+        return inputs[minimum]
+
 
     def verify_ymax_estimate(self, add_ucb=False):
         self.y_max_mean, self.y_max_var = self.compute_ymax(add_ucb)
