@@ -1235,7 +1235,7 @@ class LinearEntropySearch(GaussianProcessOptimization):
         return selected_grid
 
 
-    def compute_ymax(self, add_ucb=False, weight_type='expo'):
+    def compute_ymax(self, add_ucb=False, weight_type='linear'):
         test_bounds = [-3., 3.]
         grid = self.get_grid(test_bounds, 100, add_ucb=add_ucb)
         print(grid.shape)
@@ -1255,18 +1255,23 @@ class LinearEntropySearch(GaussianProcessOptimization):
         acqs = []
         self.compute_ymax()
         for x in inputs:
+            self.add_new_data_point(np.asarray([[x]]), sum(self.gp.predict_noiseless(np.asarray([[x]]))))
             sigmadx = self.gp.posterior_covariance_between_points(np.asarray([[x]]), self.grid.reshape([-1,1]))
             meanx, covx = self.gp.predict_noiseless(np.asarray([[x]])) # only one-d x
             meant, covt = self.gp.predict_noiseless(self.grid.reshape([-1,1]), full_cov=True)
-            Omega = 1 / covx * np.matmul(sigmadx.T, sigmadx)
-            quad = np.matmul(covt + Omega, Omega)
-            exp_s = np.trace(quad) + np.matmul(np.matmul(meant.T, Omega), meant)
-            var_s = 2 * np.trace(np.matmul(quad,quad)) \
-                    + 4 * np.matmul(np.matmul(meant.T, np.matmul(quad, covt + Omega, Omega)), meant)
-            acq = np.log(exp_s) + var_s/exp_s
-            acqs.append(acq)
+            covmut = 1 / (covx.squeeze()+1e-8) * np.matmul(sigmadx.T, sigmadx)
+            quad = np.matmul(covt + covmut, covmut)
+            trace_mat = np.matmul(quad, covmut)
+            exp_s = np.trace(trace_mat) + np.matmul(np.matmul(meant.T, quad), meant)
+            var_s = 2 * np.trace(np.matmul(trace_mat,trace_mat)) \
+                    + 4 * np.matmul(np.matmul(np.matmul(meant.T, trace_mat), quad), meant)
 
-        maximum = np.argmax(np.asarray(acqs))
+            acq = np.log(exp_s) - var_s/(2 * exp_s**2)
+            acqs.append(acq)
+            self.remove_last_data_point()
+            if exp_s < 0:
+                print(np.trace(trace_mat), np.matmul(np.matmul(meant.T, quad), meant))
+        maximum = np.argmin(np.asarray(acqs))
         return inputs[maximum]
 
 

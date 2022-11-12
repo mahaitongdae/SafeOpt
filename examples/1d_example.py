@@ -56,7 +56,7 @@ def plot_gp():
 # plot_gp()
 # plt.show()
 # Obtain next query point
-for i in range(10):
+for i in range(20):
     x_next = opt.optimize(np.linspace(-3,3,100))
     # opt.verify_ymax_estimate()
     # Get a measurement from the real system
@@ -68,6 +68,7 @@ for i in range(10):
 
 # opt.verify_ymax_estimate(add_ucb=False)
 # print(opt.y_max_mean, opt.y_max_var)
+opt.verify_ymax_estimate()
 plot_gp()
 # opt.verify_ymax_estimate(add_ucb=True)
 # print(opt.y_max_mean, opt.y_max_var)
