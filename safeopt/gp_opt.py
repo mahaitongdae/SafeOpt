@@ -1202,7 +1202,7 @@ class LinearEntropySearch(GaussianProcessOptimization):
         self.y_max_mean = 0.
         self.y_max_var = 1.
 
-    def get_grid(self, bounds, nums, add_ucb=False, ucb_only=True):
+    def get_grid(self, bounds, nums, add_ucb=False, ucb_only=False):
         """
 
         Args:
@@ -1211,7 +1211,7 @@ class LinearEntropySearch(GaussianProcessOptimization):
             new_obs:
         """
         grid = np.linspace(bounds[0], bounds[1], nums)
-        beta = 1.
+        beta = 2.
         mean, var = self.gp.predict_noiseless(grid[:, np.newaxis])
 
         mean = mean.squeeze()
@@ -1268,7 +1268,7 @@ class LinearEntropySearch(GaussianProcessOptimization):
             meanx, covx = self.gp.predict_noiseless(np.asarray([[x]])) # only one-d x
             meant, covt = self.gp.predict_noiseless(self.grid.reshape([-1,1]), full_cov=True)
             covmut = 1 / (covx.squeeze()+1e-8) * np.matmul(sigmadx.T, sigmadx)
-            quad = covt + covmut
+            quad = covt - covmut
             trace_mat = np.matmul(quad, covmut)
             exp_s = np.trace(trace_mat) + np.matmul(np.matmul(meant.T, quad), meant)
             var_s = 2 * np.trace(np.matmul(trace_mat,trace_mat)) \
@@ -1283,7 +1283,8 @@ class LinearEntropySearch(GaussianProcessOptimization):
                 a = 0
         self.acqs = acqs
         self.deltasigs = deltasigs
-        minimum = np.argmin(-np.asarray(deltasigs))
+        # minimum = np.argmin(-np.asarray(deltasigs))
+        minimum = np.argmax(np.asarray(acqs))
         print(minimum)
         return inputs[minimum]
 
